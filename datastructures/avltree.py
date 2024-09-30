@@ -13,6 +13,9 @@ class Node(Generic[K,V]):
         self.Key = key
         self.Value = val
 
+    def recalc_height(self):
+        self.Height = 1 + max(self.Left.Height or 0, self.Right.Height or 0)
+
 
 class AVLTree(IAVLTree[K,V], Generic[K,V]):
     Root: Node[K,V] = None
@@ -26,13 +29,15 @@ class AVLTree(IAVLTree[K,V], Generic[K,V]):
             self.Root = Node(key, val)
             return
         self.insert_helper(Node(key,val), self.Root)
+        self.Count += 1
         
 
-    def insert_helper(self, newNode: Node[K,V], node: Node[K,V]):
+    def insert_helper(self, newNode: Node[K,V], node: Node[K,V]) -> Node[K,V]:
+
         child = node.Left if newNode.Key < node.Key else node.Right
         if child is None:
             child = newNode
-            return 
+            return newNode
         else:
             self.insert_helper(newNode, child)
             node.Height = 1 + max(node.Left.Height or 0, node.Right.Height or 0)
@@ -40,10 +45,42 @@ class AVLTree(IAVLTree[K,V], Generic[K,V]):
             #TODO balance factor & rotations
 
 
+    def balance_tree(self, node: Node[K,V]) -> Node[K,V]:
+        if node.bf > 1 and node.Left.bf >= 0:               #LL
+            return self.rotate_right(node)
+        elif node.bf < -1 and node.Right.bf <= 0:           #RR
+            return self.rotate_left(node)
+        elif node.bf > 1 and node.Left.bf <= -1:            #LR
+            node.Left = self.rotate_left(node.Left)
+            return self.rotate_right(node)
+        elif node.bf < -1 and node.Right.bf >= 1:           #RL
+            node.Right = self.rotate_right(node.Right)
+            return self.rotate_left(node)
+
+    def rotate_right(self, node: Node[K,V]) -> Node[K,V]:
+        root = node.Left
+        subtree = root.Right
+        root.Right = node
+        node.Left = subtree
+        node.recalc_height()
+        root.recalc_height()
+        return root
+
+    def rotate_left(self, node: Node[K,V]) -> Node[K,V]:
+        root = node.Right
+        subtree = root.Left
+        root.Left = node
+        node.Right = subtree
+        node.recalc_height()
+        root.recalc_height()
+        return root
+
     def search(self, key: K) -> V | None:
         raise NotImplementedError
 
     def delete(self, key: K) -> None:
+
+        self.Count -= 1
         raise NotImplementedError
 
     def inorder(self, visit: Callable[[V], None] | None = None) -> List[K]:
