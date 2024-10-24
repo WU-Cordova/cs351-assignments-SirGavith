@@ -10,27 +10,29 @@ class AVLTree(IAVLTree[K,V], Generic[K,V]):
     def __init__(self, seq: Iterable[tuple[K,V]] = None) -> None:
         for k,v in seq or []: self.insert(k,v)
 
-    def insert(self, key: K, val: V = None) -> None:
-        self.Root = self.insert_helper(AVLNode(key,val), self.Root)
+    def insert(self, key: K, val: V = None, on_recalc = lambda node: ()) -> None:
+        self.Root = self.insert_helper(AVLNode(key,val), self.Root, on_recalc)
         self.Count += 1
         
-    def insert_helper(self, newNode: AVLNode[K,V], node: AVLNode[K,V]) -> AVLNode[K,V]:
+    def insert_helper(self, newNode: AVLNode[K,V], node: AVLNode[K,V], on_recalc) -> AVLNode[K,V]:
         if node is None:
             return newNode
 
         if newNode.Key < node.Key:
-            node.Left = self.insert_helper(newNode, node.Left)
+            node.Left = self.insert_helper(newNode, node.Left, on_recalc)
         else:
-            node.Right = self.insert_helper(newNode, node.Right)
+            node.Right = self.insert_helper(newNode, node.Right, on_recalc)
         
         node.recalc_height()
-        return self.balance_tree(node) if node.bf > 1 or node.bf < -1 else node
+        new_node = self.balance_tree(node, on_recalc) if node.bf > 1 or node.bf < -1 else node
+        on_recalc(new_node)
+        return new_node
 
-    def delete(self, key: K) -> None:
-        self.Root = self.delete_helper(self.Root, key)
+    def delete(self, key: K, on_recalc = lambda node: ()) -> None:
+        self.Root = self.delete_helper(self.Root, key, on_recalc)
         self.Count -= 1
     
-    def delete_helper(self, node: AVLNode[K,V], key: K) -> AVLNode[K,V]:
+    def delete_helper(self, node: AVLNode[K,V], key: K, on_recalc) -> AVLNode[K,V]:
         if node is None:
             raise KeyError(f"Key {key} not found in tree")
         
@@ -45,49 +47,57 @@ class AVLTree(IAVLTree[K,V], Generic[K,V]):
 
             node.Key = successor.Key
             node.Value = successor.Value
-            node.Right = self.delete_helper(node.Right, successor.Key)
+            node.Right = self.delete_helper(node.Right, successor.Key, on_recalc)
 
         elif (key < node.Key):
-            node.Left = self.delete_helper(node.Left, key)
+            node.Left = self.delete_helper(node.Left, key, on_recalc)
         else:
-            node.Right = self.delete_helper(node.Right, key)
+            node.Right = self.delete_helper(node.Right, key, on_recalc)
 
         node.recalc_height()
-        return self.balance_tree(node) if node.bf > 1 or node.bf < -1 else node
+        new_node = self.balance_tree(node, on_recalc) if node.bf > 1 or node.bf < -1 else node
+        on_recalc(new_node)
+        return new_node
     
-    def balance_tree(self, node: AVLNode[K,V]) -> AVLNode[K,V]:
+    def balance_tree(self, node: AVLNode[K,V], on_recalc) -> AVLNode[K,V]:
         if node.bf > 1 and node.Left.bf >= 0:               #LL
-            return self.rotate_right(node)
+            return self.rotate_right(node, on_recalc)
         elif node.bf < -1 and node.Right.bf <= 0:           #RR
-            return self.rotate_left(node)
+            return self.rotate_left(node, on_recalc)
         elif node.bf > 1 and node.Left.bf <= -1:            #LR
-            node.Left = self.rotate_left(node.Left)
-            return self.rotate_right(node)
+            node.Left = self.rotate_left(node.Left, on_recalc)
+            return self.rotate_right(node, on_recalc)
         elif node.bf < -1 and node.Right.bf >= 1:           #RL
-            node.Right = self.rotate_right(node.Right)
-            return self.rotate_left(node)
+            node.Right = self.rotate_right(node.Right, on_recalc)
+            return self.rotate_left(node, on_recalc)
 
-    def rotate_right(self, node: AVLNode[K,V]) -> AVLNode[K,V]:
+    def rotate_right(self, node: AVLNode[K,V], on_recalc) -> AVLNode[K,V]:
         root = node.Left
         subtree = root.Right
         root.Right = node
         node.Left = subtree
         node.recalc_height()
         root.recalc_height()
+        on_recalc(node)
         return root
 
-    def rotate_left(self, node: AVLNode[K,V]) -> AVLNode[K,V]:
+    def rotate_left(self, node: AVLNode[K,V], on_recalc) -> AVLNode[K,V]:
         root = node.Right
         subtree = root.Left
         root.Left = node
         node.Right = subtree
         node.recalc_height()
         root.recalc_height()
+        on_recalc(node)
         return root
     
     def search(self, key: K) -> V | None:
+        return node.Value if (node:= self.get_node(key)) is not None else None
+    
+    def get_node(self, key: K) -> V | None:
+        if self.Root is None: return None
         def recurse(node: AVLNode[K,V]) -> V:
-            return node.Value if node.Key == key else \
+            return node if node.Key == key else \
                 recurse(child) if \
                 (child := node.Left if key < node.Key else node.Right) is not None \
                     else None
